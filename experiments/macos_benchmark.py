@@ -112,7 +112,9 @@ def configs(args: argparse.Namespace) -> list[dict]:
     }
     out = [{"name": "baseline"}]
     out.append({"name": "no_spin", "session_config": no_spin})
-    out.append({"name": "dynamic_block_base=4", "session_config": {"session.dynamic_block_base": "4"}})
+    out.append(
+        {"name": "dynamic_block_base=4", "session_config": {"session.dynamic_block_base": "4"}}
+    )
     cpus = os.cpu_count() or 1
     for t in sorted({1, 2, cpus // 2, cpus} - {0}):
         out.append({"name": f"threads={t}", "threads": t})

@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest]
+        os: [macos-15, macos-26, macos-15-intel]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -27,6 +27,7 @@ jobs:
         run: |
           set -o pipefail
           sysctl -a | grep -E "hw.(perflevel|physicalcpu|logicalcpu|memsize)|brand_string" | tee bench.txt || true
+          uv run --no-sync pytest -q tests/test_default_threads.py 2>&1 | tee -a bench.txt
           uv run --no-sync python experiments/macos_benchmark.py --docs 1000 2>&1 | tee -a bench.txt
       - name: Post results as a commit comment
         if: always()
