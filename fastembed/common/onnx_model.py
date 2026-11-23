@@ -44,9 +44,11 @@ def _macos_sysctl_int(name: str) -> int | None:
 def _default_cpu_threads() -> int | None:
     """Number of intra-op threads to use when the caller sets no `threads`.
 
-    Apple Silicon has performance and efficiency cores. onnxruntime uses all of them by default
-    and splits each matrix multiplication into equal parts, so the slower efficiency cores hold
-    back the performance cores. On such machines, use only the performance cores.
+    On macOS, onnxruntime is slower with its default thread count than with an explicit count
+    of the physical cores. Apple Silicon also has performance and efficiency cores. Each matrix
+    multiplication is split into equal parts, so the slower efficiency cores hold back the
+    performance cores. On macOS, use the performance cores, or all physical cores when the CPU
+    has one core type.
 
     Returns:
         int | None: the thread count, or None to keep the onnxruntime default.
@@ -54,9 +56,9 @@ def _default_cpu_threads() -> int | None:
     if sys.platform != "darwin":
         return None
     levels = _macos_sysctl_int("hw.nperflevels")
-    if levels is None or levels < 2:
-        return None
-    return _macos_sysctl_int("hw.perflevel0.physicalcpu")
+    if levels is not None and levels > 1:
+        return _macos_sysctl_int("hw.perflevel0.physicalcpu")
+    return _macos_sysctl_int("hw.physicalcpu")
 
 
 @dataclass

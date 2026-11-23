@@ -14,8 +14,9 @@ def test_default_threads_other_platforms(monkeypatch: pytest.MonkeyPatch) -> Non
 @pytest.mark.parametrize(
     "sysctl, expected",
     [
-        ({"hw.nperflevels": 2, "hw.perflevel0.physicalcpu": 8}, 8),
-        ({"hw.nperflevels": 1, "hw.perflevel0.physicalcpu": 3}, None),
+        ({"hw.nperflevels": 2, "hw.perflevel0.physicalcpu": 8, "hw.physicalcpu": 12}, 8),
+        ({"hw.nperflevels": 1, "hw.perflevel0.physicalcpu": 3, "hw.physicalcpu": 3}, 3),
+        ({"hw.physicalcpu": 4}, 4),
         ({}, None),
     ],
 )
