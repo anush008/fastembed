@@ -1,4 +1,5 @@
 import os
+import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,39 @@ if os.environ.get("ORT_DISABLE_TELEMETRY", "1").lower() not in ("0", "false") an
 
 # Holds type of the embedding result
 T = TypeVar("T")
+
+
+def _macos_sysctl_int(name: str) -> int | None:
+    import ctypes
+    import ctypes.util
+
+    try:
+        libc = ctypes.CDLL(ctypes.util.find_library("c"))
+        value = ctypes.c_int(0)
+        size = ctypes.c_size_t(ctypes.sizeof(value))
+        if libc.sysctlbyname(name.encode(), ctypes.byref(value), ctypes.byref(size), None, 0):
+            return None
+        return value.value
+    except (OSError, AttributeError):
+        return None
+
+
+def _default_cpu_threads() -> int | None:
+    """Number of intra-op threads to use when the caller sets no `threads`.
+
+    Apple Silicon has performance and efficiency cores. onnxruntime uses all of them by default
+    and splits each matrix multiplication into equal parts, so the slower efficiency cores hold
+    back the performance cores. On such machines, use only the performance cores.
+
+    Returns:
+        int | None: the thread count, or None to keep the onnxruntime default.
+    """
+    if sys.platform != "darwin":
+        return None
+    levels = _macos_sysctl_int("hw.nperflevels")
+    if levels is None or levels < 2:
+        return None
+    return _macos_sysctl_int("hw.perflevel0.physicalcpu")
 
 
 @dataclass
@@ -129,6 +163,10 @@ class OnnxModel(Generic[T]):
         if threads is not None:
             so.intra_op_num_threads = threads
             so.inter_op_num_threads = threads
+        elif "CUDAExecutionProvider" not in requested_provider_names:
+            default_threads = _default_cpu_threads()
+            if default_threads:
+                so.intra_op_num_threads = default_threads
 
         if extra_session_options is not None:
             self.add_extra_session_options(so, extra_session_options)
