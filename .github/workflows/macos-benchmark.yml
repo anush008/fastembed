@@ -1,0 +1,37 @@
+name: macOS benchmark
+
+on:
+  push:
+    branches: [macos-bench]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up uv
+        uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: uv sync --locked --no-group dev --no-group docs
+      - name: Run benchmark
+        run: |
+          set -o pipefail
+          sysctl -a | grep -E "hw.(perflevel|physicalcpu|logicalcpu|memsize)|brand_string" | tee bench.txt || true
+          uv run --no-sync python experiments/macos_benchmark.py --docs 1000 2>&1 | tee -a bench.txt
+      - name: Post results as a commit comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo "### ${{ matrix.os }}"; echo '```'; tail -c 60000 bench.txt; echo '```'; } > body.md
+          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -F body=@body.md
