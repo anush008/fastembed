@@ -1,4 +1,7 @@
+import ctypes
+import ctypes.util
 import os
+import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +26,16 @@ if os.environ.get("ORT_DISABLE_TELEMETRY", "1").lower() not in ("0", "false") an
 
 # Holds type of the embedding result
 T = TypeVar("T")
+
+
+def _performance_cores() -> int | None:
+    libc = ctypes.CDLL(ctypes.util.find_library("c"))
+    value = ctypes.c_int()
+    size = ctypes.c_size_t(ctypes.sizeof(value))
+    name = b"hw.perflevel0.physicalcpu"
+    if libc.sysctlbyname(name, ctypes.byref(value), ctypes.byref(size), None, ctypes.c_size_t(0)):
+        return None
+    return value.value
 
 
 @dataclass
@@ -126,6 +139,8 @@ class OnnxModel(Generic[T]):
         so = ort.SessionOptions()
         so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
+        if threads is None and sys.platform == "darwin":
+            threads = _performance_cores()
         if threads is not None:
             so.intra_op_num_threads = threads
             so.inter_op_num_threads = threads
